@@ -1,4 +1,5 @@
-package ru.elena;
+package ru.elena.clientside;
+
 
 import javax.swing.*;
 import java.awt.*;
@@ -13,9 +14,9 @@ import java.net.Socket;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
-public class EchoClient extends JFrame {
-    private final static String IP_ADDRESS = "localhost"; //127.0.0.1 ip address
-    private final static int SERVER_PORT = 8181;
+public class BaseClient extends JFrame {
+    private final static String IP_ADDRESS = "localhost";
+    private final static int SERVER_PORT = 8081;
 
     private JTextField msgInputField;
     private JTextArea chatArea;
@@ -24,56 +25,72 @@ public class EchoClient extends JFrame {
     private DataInputStream dis;
     private DataOutputStream dos;
 
-    public EchoClient() {
+    private boolean isAuthorized;
 
+    public BaseClient() {
         try {
             connection();
         } catch (Exception e) {
             e.printStackTrace();
         }
         prepareGUI();
-
     }
+
+    public boolean isAuthorized() {
+        return isAuthorized;
+    }
+
+    public void setAuthorized(boolean authorized) {
+        isAuthorized = authorized;
+    }
+
+
 
     private void connection() throws IOException {
         socket = new Socket(IP_ADDRESS, SERVER_PORT);
         dis = new DataInputStream(socket.getInputStream());
         dos = new DataOutputStream(socket.getOutputStream());
+        setAuthorized(false);
+        Thread thread = new Thread(() -> {
+            try {
+                while (true){
 
-        new Thread(() -> {
-            while (true) {
-                try {
                     String serverMassage = dis.readUTF();
-                    if (serverMassage.equalsIgnoreCase("/q")) {
-                        dos.writeUTF(serverMassage);
+                    if (serverMassage.startsWith("/authok")) {
+                        setAuthorized(true);
+                        chatArea.append(serverMassage + "\n");
+                        break;
+                    }
+                    chatArea.append(serverMassage + "\n");
+                }
+                while (true) {
+
+                    String serverMassage = dis.readUTF();
+                    if (serverMassage.equals("/q")) {
+//                        dos.writeUTF(serverMassage);
                         break;
                     }
 
                     DateTimeFormatter dtf = DateTimeFormatter.ofPattern("dd-MM-yyyy hh:mm:ss");
                     chatArea.append(dtf.format(LocalDateTime.now()) + ": " + serverMassage + "\n");
-
-                } catch (IOException ignored) {
-                    ignored.printStackTrace();
                 }
+            } catch (IOException ignored) {
+                ignored.printStackTrace();
             }
+
             System.out.println("FRAME CLOSE CONNECTION");
             closeConnection();
             dispose();
-        }).start();
-
-
+        });
+//        thread.setDaemon(true);
+        thread.start();
     }
 
     private void sendMassageToServer() {
         if (!msgInputField.getText().trim().isEmpty()) {
             try {
-                String messsgeToServer = msgInputField.getText();
-
-                dos.writeUTF(messsgeToServer);
-                if (messsgeToServer.equalsIgnoreCase("/q")) {
-                    dispose();
-                }
-
+                String messageToServer = msgInputField.getText();
+                dos.writeUTF(messageToServer);
                 msgInputField.setText("");
             } catch (IOException ignored) {
             }
@@ -82,7 +99,6 @@ public class EchoClient extends JFrame {
     }
 
     private void prepareGUI() {
-
         setTitle("Мой чат");
         setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
         setBounds(400, 400, 600, 600);
@@ -117,7 +133,7 @@ public class EchoClient extends JFrame {
         Color textColour = Color.BLACK;
         chatArea.setDisabledTextColor(textColour);
 
-        Color backgroundColour = new Color(247, 205, 141);
+        Color backgroundColour = getBackgroundColor();
         chatArea.setBackground(backgroundColour);
         msgInputField.addActionListener(e -> {
             sendMassageToServer();
@@ -147,6 +163,10 @@ public class EchoClient extends JFrame {
         setVisible(true);
     }
 
+    protected Color getBackgroundColor() {
+        return new Color(255, 255, 255);
+    }
+
     private void closeConnection() {
 
         try {
@@ -173,4 +193,3 @@ public class EchoClient extends JFrame {
         }
     }
 }
-
