@@ -15,6 +15,8 @@ public class MyServer {
     private List<ClientHandler> clientsList;
     private AuthenticationService authService;
 
+    private static final int TIMEOUT_MLS = 120000;
+
     public AuthenticationService getAuthService() {
         return this.authService;
     }
@@ -27,8 +29,8 @@ public class MyServer {
 
             while (true) {
                 Socket socket = serverSocket.accept();
+                socket.setSoTimeout(TIMEOUT_MLS);
                 new ClientHandler(this, socket);
-
             }
         } catch (IOException e) {
             System.out.println(e.getMessage());
@@ -46,23 +48,39 @@ public class MyServer {
     }
 
     public synchronized void sendPrivateMessageToClient(String sender, String receiver, String message) {
+        if(clientsList.stream().noneMatch(clientHandler -> clientHandler.getName().equalsIgnoreCase(receiver))) {
+            clientsList.stream()
+                    .filter(clientHandler -> clientHandler.getName().equalsIgnoreCase(sender))
+                    .findFirst()
+                    .ifPresent(clientHandler -> clientHandler.sendMessage(receiver + ": offline"));
+            return;
+        }
+
         clientsList.forEach(clientHandler -> {
-            if (clientHandler.getName().equalsIgnoreCase(sender) ||
-                    clientHandler.getName().equalsIgnoreCase(receiver)) {
-                clientHandler.sendMessage(message);
-            }});
-        }
+            if (clientHandler.getName().equalsIgnoreCase(sender)) {
+                clientHandler.sendMessage("You said private " + receiver + ": " + message);
+            } else if (clientHandler.getName().equalsIgnoreCase(receiver)) {
+                clientHandler.sendMessage(sender + ": send private message " + message);
+            }
 
-        public synchronized void subscribe (ClientHandler c){
-            clientsList.add(c);
-        }
+        });
 
-        public synchronized void unsubscribe (ClientHandler c){
-            clientsList.remove(c);
-        }
-
-        public boolean isNickBusy (String nick){
-            return clientsList.stream()
-                    .anyMatch(a -> a.getName().equals(nick));
-        }
     }
+
+    public synchronized void subscribe(ClientHandler c) {
+        clientsList.add(c);
+    }
+
+    public synchronized void unsubscribe(ClientHandler c) {
+        clientsList.remove(c);
+    }
+
+    public boolean isNickBusy(String nick) {
+        return clientsList.stream()
+                .anyMatch(a -> a.getName().equals(nick));
+    }
+
+    public synchronized void sendOnlineClientLists(ClientHandler c) {
+        c.sendMessage("Now Online: " + clientsList.toString());
+    }
+}

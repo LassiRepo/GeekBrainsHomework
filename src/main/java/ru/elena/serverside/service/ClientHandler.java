@@ -4,6 +4,7 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.Socket;
+import java.time.LocalDateTime;
 
 public class ClientHandler {
 
@@ -36,7 +37,6 @@ public class ClientHandler {
                 } finally {
                     closeConnection();
                 }
-
             }).start();
         } catch (IOException e) {
             System.out.println("Server problem");
@@ -65,6 +65,7 @@ public class ClientHandler {
                             sendMessage((SUCCEED_AUTH_MARK + nick));
                             name = nick;
                             myServer.sendMessageToClients(nick + " Joined to chat");
+                            socket.setSoTimeout(0);
                             myServer.subscribe(this);
                             return;
                         }
@@ -88,18 +89,27 @@ public class ClientHandler {
     private void readMessage() throws IOException {
         while (true) {
             String messageFromClient = dis.readUTF();
+            if (messageFromClient.startsWith("/")) {
 
-            if (messageFromClient.equals(QUIT_MARK)) {
-                sendMessage(messageFromClient);
-                return;
-            } else if (messageFromClient.contains(PRIVATE_MARK)) {
-                String[] messageParts = messageFromClient.split(" ");
+                if (messageFromClient.startsWith("/ou")) {
+                    myServer.sendOnlineClientLists(this);
+                    continue;
+                }
 
-                if(messageParts.length > 2) {
-                    myServer.sendPrivateMessageToClient(
-                            getName(),
-                            messageParts[1],
-                            messageFromClient.replace(PRIVATE_MARK + " " + messageParts[1] + " ", ""));
+                if (messageFromClient.equals(QUIT_MARK)) {
+                    sendMessage(messageFromClient);
+                    return;
+                }
+
+                if (messageFromClient.startsWith(PRIVATE_MARK)) {
+                    String[] messageParts = messageFromClient.split(" ");
+
+                    if (messageParts.length > 2) {
+                        myServer.sendPrivateMessageToClient(
+                                getName(),
+                                messageParts[1],
+                                messageFromClient.replace(PRIVATE_MARK + " " + messageParts[1] + " ", ""));
+                    }
                 }
             } else {
                 myServer.sendMessageToClients(name + ": " + messageFromClient);
@@ -110,5 +120,10 @@ public class ClientHandler {
     private void closeConnection() {
         myServer.unsubscribe(this);
         myServer.sendMessageToClients(name + " leave chat");
+    }
+
+    @Override
+    public String toString() {
+        return name;
     }
 }
